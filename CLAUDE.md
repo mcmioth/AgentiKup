@@ -1,5 +1,7 @@
 # CS AgentiKup - Dashboard OpenCUP
 
+**Repo**: https://github.com/mcmioth/AgentiKup
+
 Dashboard web per esplorare i dati OpenCUP (Comitato per la programmazione economica) con ~11.5M di progetti e relativi CIG (Codici Identificativi Gara).
 
 ## Stack tecnologico
@@ -79,11 +81,23 @@ Se i file Parquet non esistono, eseguire prima: `python scripts/convert_to_parqu
 
 ## Dati sorgente
 
+I file sorgente vanno posizionati nella root del progetto per la conversione:
+
 - `OpenCup_Progetti0.csv` ... `OpenCup_Progetti6.csv` (~7 file, vari GB)
 - `OpenCup_Localizzazione.csv` (area geo, regione, provincia, comune per CUP)
 - `OpenCup_Soggetti.csv` (categoria/sottocategoria soggetto per PIVA)
 - `OpenCup_Fonti_Copertura.csv` (non ancora usato)
-- CIG: `cup_json/cup_json.json` (mappatura CIG-CUP) + `cup_json/cig_json_*.zip` (dettagli gara mensili)
+- `cup_json/cup_json.json` (mappatura CIG-CUP)
+- `cup_json/cig_json_*.zip` (dettagli gara mensili, ~72 file zip)
+
+Tutti i file sorgente sono in `.gitignore` (*.csv, data/).
+
+## Aggiornamento dati
+
+1. Posizionare i CSV nella root del progetto e la cartella `cup_json/` con i JSON/zip
+2. Eseguire `python scripts/convert_to_parquet.py`
+3. Verificare che `data/progetti.parquet`, `data/cig.parquet` e `data/stats.json` siano stati generati
+4. (Opzionale) Eliminare i CSV sorgente per risparmiare spazio
 
 ## Note tecniche
 
