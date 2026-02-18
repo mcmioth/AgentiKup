@@ -312,6 +312,7 @@ function initCigGrid() {
     const columnDefs = [
         { field: "CIG", width: 130, pinned: "left", cellClass: "cup-link" },
         { field: "CUP", width: 170 },
+        { field: "amm_appaltante", headerName: "Amm. Appaltante", flex: 1, minWidth: 200 },
         { field: "oggetto_gara", headerName: "Oggetto Gara", flex: 2, minWidth: 250 },
         {
             field: "importo_complessivo_gara", headerName: "Importo Gara",
@@ -320,7 +321,6 @@ function initCigGrid() {
         { field: "stato_cig", headerName: "Stato", width: 100 },
         { field: "esito_cig", headerName: "Esito", width: 140 },
         { field: "tipo_scelta_contraente", headerName: "Tipo Contraente", width: 200 },
-        { field: "amm_appaltante", headerName: "Amm. Appaltante", flex: 1, minWidth: 200 },
         { field: "data_pubblicazione", headerName: "Data Pubbl.", width: 120 },
         { field: "provincia_cig", headerName: "Provincia", width: 120 },
         { field: "anno_pubblicazione", headerName: "Anno", width: 80, comparator: numComp },
