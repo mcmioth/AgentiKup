@@ -1,6 +1,7 @@
 # CS AgentiKup - Dashboard OpenCUP
 
 **Repo**: https://github.com/mcmioth/AgentiKup
+**Produzione**: http://72.62.93.58 (Hostinger VPS KVM 2, Ubuntu 24.04)
 
 Dashboard web per esplorare i dati OpenCUP (Comitato per la programmazione economica) con ~11.5M di progetti e relativi CIG (Codici Identificativi Gara).
 
@@ -98,6 +99,35 @@ Tutti i file sorgente sono in `.gitignore` (*.csv, data/).
 2. Eseguire `python scripts/convert_to_parquet.py`
 3. Verificare che `data/progetti.parquet`, `data/cig.parquet` e `data/stats.json` siano stati generati
 4. (Opzionale) Eliminare i CSV sorgente per risparmiare spazio
+
+## Deploy (Hostinger VPS)
+
+- **Server**: Hostinger KVM 2 (8 GB RAM, 2 vCPU, 100 GB NVMe)
+- **IP**: 72.62.93.58
+- **OS**: Ubuntu 24.04 LTS
+- **Accesso SSH**: `ssh root@72.62.93.58`
+- **Autenticazione**: nginx Basic Auth (username: `agentikup`, file: `/etc/nginx/.htpasswd`)
+- **App path**: `/opt/AgentiKup`
+- **Venv**: `/opt/AgentiKup/venv`
+- **Servizio**: `systemctl {start|stop|restart|status} agentikup`
+- **Nginx config**: `/etc/nginx/sites-available/agentikup`
+- **Logs**: `journalctl -u agentikup -f`
+
+### Aggiornamento codice sul server
+
+```bash
+ssh root@72.62.93.58
+cd /opt/AgentiKup && git pull && systemctl restart agentikup
+```
+
+### Aggiornamento dati sul server
+
+```bash
+scp data/progetti.parquet root@72.62.93.58:/opt/AgentiKup/data/
+scp data/cig.parquet root@72.62.93.58:/opt/AgentiKup/data/
+scp data/stats.json root@72.62.93.58:/opt/AgentiKup/data/
+ssh root@72.62.93.58 "systemctl restart agentikup"
+```
 
 ## Note tecniche
 
