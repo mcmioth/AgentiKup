@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS AgentiKup</title>
+
+    <!-- Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- AG Grid -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/styles/ag-grid.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/styles/ag-theme-alpine.css">
+    <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/dist/ag-grid-community.min.noStyle.js"></script>
+
+    <!-- App CSS -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+    <div style="display:flex;align-items:center;gap:12px;">
+        <button class="btn-menu" id="btn-menu" style="display:none;background:none;border:none;color:white;font-size:1.3rem;cursor:pointer;">&#9776;</button>
+        <h1>CS AgentiKup</h1>
+    </div>
+    <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="progetti">Progetti</button>
+        <button class="tab-btn" data-tab="cig">CIG</button>
+    </nav>
+    <span class="header-info" id="header-info">Caricamento...</span>
+</header>
+
+<div class="layout">
+
+    <!-- ========== SIDEBAR PROGETTI ========== -->
+    <aside class="sidebar" id="sidebar-progetti">
+        <div class="filter-buttons">
+            <button class="btn btn-primary" id="btn-apply">Applica</button>
+            <button class="btn btn-secondary" id="btn-reset">Reset</button>
+        </div>
+
+        <h3 style="margin-top:16px;">Ricerca Codice</h3>
+
+        <div class="filter-group">
+            <label for="f-cup">Cerca CUP</label>
+            <input type="text" id="f-cup" placeholder="Es. J11B15000300001">
+        </div>
+
+        <div class="filter-group">
+            <label for="f-cig">Cerca CIG</label>
+            <input type="text" id="f-cig" placeholder="Es. B5697CA1D7">
+        </div>
+
+        <div class="filter-group">
+            <label for="f-hascig">Ha CIG</label>
+            <select id="f-hascig">
+                <option value="">Tutti</option>
+                <option value="SI">Si</option>
+                <option value="NO">No</option>
+            </select>
+        </div>
+
+        <h3 style="margin-top:20px;">Soggetto Titolare</h3>
+
+        <div class="filter-group">
+            <label>Categoria Soggetto</label>
+            <div id="f-catsogg" data-ss data-placeholder="Tutti"></div>
+        </div>
+
+        <div class="filter-group">
+            <label>Sotto Categoria Soggetto</label>
+            <div id="f-sottocatsogg" data-ss data-placeholder="Tutti"></div>
+        </div>
+
+        <h3 style="margin-top:20px;">Localizzazione</h3>
+
+        <div class="filter-group">
+            <label for="f-areageo">Area Geografica</label>
+            <select id="f-areageo"><option value="">Tutte</option></select>
+        </div>
+
+        <div class="filter-group">
+            <label for="f-regione">Regione</label>
+            <select id="f-regione"><option value="">Tutte</option></select>
+        </div>
+
+        <div class="filter-group">
+            <label>Provincia</label>
+            <div id="f-provincia" data-ss data-placeholder="Tutte"></div>
+        </div>
+
+        <div class="filter-group">
+            <label>Comune</label>
+            <div id="f-comune" data-ss data-placeholder="Tutti"></div>
+        </div>
+
+        <h3 style="margin-top:20px;">Filtri</h3>
+
+        <div class="filter-group">
+            <label for="f-stato">Stato Progetto</label>
+            <select id="f-stato"><option value="">Tutti</option></select>
+        </div>
+
+        <div class="filter-group">
+            <label for="f-anno">Anno Decisione</label>
+            <select id="f-anno"><option value="">Tutti</option></select>
+        </div>
+
+        <div class="filter-group">
+            <label for="f-settore">Settore Intervento</label>
+            <select id="f-settore"><option value="">Tutti</option></select>
+        </div>
+
+        <div class="filter-group">
+            <label for="f-natura">Natura Intervento</label>
+            <select id="f-natura"><option value="">Tutti</option></select>
+        </div>
+
+        <div class="filter-group">
+            <label for="f-area">Area Intervento</label>
+            <select id="f-area"><option value="">Tutti</option></select>
+        </div>
+
+        <div class="filter-group">
+            <label>Categoria Intervento</label>
+            <div id="f-categoria" data-ss data-placeholder="Tutti"></div>
+        </div>
+
+        <div class="filter-group">
+            <label>Sottosettore Intervento</label>
+            <div id="f-sottosettore" data-ss data-placeholder="Tutti"></div>
+        </div>
+
+        <div class="filter-group">
+            <label>Tipologia Intervento</label>
+            <div id="f-tipointervento" data-ss data-placeholder="Tutti"></div>
+        </div>
+
+        <div class="filter-group">
+            <label for="f-strumento">Strumento Programmazione</label>
+            <select id="f-strumento"><option value="">Tutti</option></select>
+        </div>
+
+        <div class="filter-group">
+            <label for="f-tipologia">Tipologia CUP</label>
+            <select id="f-tipologia"><option value="">Tutti</option></select>
+        </div>
+
+        <div class="filter-group">
+            <label>Costo Progetto</label>
+            <div style="display:flex;gap:6px;">
+                <input type="number" id="f-costo-min" placeholder="Min">
+                <input type="number" id="f-costo-max" placeholder="Max">
+            </div>
+        </div>
+    </aside>
+
+    <!-- ========== SIDEBAR CIG ========== -->
+    <aside class="sidebar" id="sidebar-cig" style="display:none;">
+        <div class="filter-buttons">
+            <button class="btn btn-primary" id="btn-cig-apply">Applica</button>
+            <button class="btn btn-secondary" id="btn-cig-reset">Reset</button>
+        </div>
+
+        <h3 style="margin-top:16px;">Ricerca CIG</h3>
+
+        <div class="filter-group">
+            <label for="fc-cig">Codice CIG</label>
+            <input type="text" id="fc-cig" placeholder="Es. B5697CA1D7">
+        </div>
+
+        <div class="filter-group">
+            <label for="fc-cup">CUP associato</label>
+            <input type="text" id="fc-cup" placeholder="Es. J11B15000300001">
+        </div>
+
+        <h3 style="margin-top:20px;">Filtri</h3>
+
+        <div class="filter-group">
+            <label for="fc-stato">Stato</label>
+            <select id="fc-stato"><option value="">Tutti</option></select>
+        </div>
+
+        <div class="filter-group">
+            <label for="fc-esito">Esito</label>
+            <select id="fc-esito"><option value="">Tutti</option></select>
+        </div>
+
+        <div class="filter-group">
+            <label for="fc-settore">Settore</label>
+            <select id="fc-settore"><option value="">Tutti</option></select>
+        </div>
+
+        <div class="filter-group">
+            <label>Tipo Scelta Contraente</label>
+            <div id="fc-tipo" data-ss data-placeholder="Tutti"></div>
+        </div>
+
+        <div class="filter-group">
+            <label for="fc-anno">Anno Pubblicazione</label>
+            <select id="fc-anno"><option value="">Tutti</option></select>
+        </div>
+
+        <div class="filter-group">
+            <label>Provincia</label>
+            <div id="fc-provincia" data-ss data-placeholder="Tutte"></div>
+        </div>
+
+        <div class="filter-group">
+            <label>Sezione Regionale</label>
+            <div id="fc-sezione" data-ss data-placeholder="Tutte"></div>
+        </div>
+
+        <div class="filter-group">
+            <label>Modalita Realizzazione</label>
+            <div id="fc-modalita" data-ss data-placeholder="Tutte"></div>
+        </div>
+
+        <div class="filter-group">
+            <label>Strumento Svolgimento</label>
+            <div id="fc-strumento" data-ss data-placeholder="Tutti"></div>
+        </div>
+
+        <h3 style="margin-top:20px;">Altro</h3>
+
+        <div class="filter-group">
+            <label for="fc-pnrr">Solo PNRR/PNC</label>
+            <select id="fc-pnrr">
+                <option value="">Tutti</option>
+                <option value="SI">Si</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="fc-detail">Solo con dettaglio</label>
+            <select id="fc-detail">
+                <option value="">Tutti</option>
+                <option value="SI">Si</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Importo Gara</label>
+            <div style="display:flex;gap:6px;">
+                <input type="number" id="fc-importo-min" placeholder="Min">
+                <input type="number" id="fc-importo-max" placeholder="Max">
+            </div>
+        </div>
+
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+        <!-- Search & Actions -->
+        <section class="actions-bar">
+            <div class="search-box">
+                <svg class="search-box-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input type="text" id="search-input"
+                       placeholder="Cerca per CUP, descrizione, soggetto titolare...">
+            </div>
+            <span class="results-info" id="results-info"></span>
+            <button class="btn btn-secondary" id="btn-export">Esporta CSV</button>
+        </section>
+
+        <!-- Data Table -->
+        <section class="table-container">
+            <div id="data-grid" class="ag-theme-alpine"></div>
+            <div class="pagination" id="pagination">
+                <span id="page-info">-</span>
+                <div class="pagination-buttons" id="page-buttons"></div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="modal-title">Dettaglio</h3>
+            <button class="modal-close" id="modal-close">&times;</button>
+        </div>
+        <div class="modal-body" id="modal-body"></div>
+    </div>
+</div>
+
+<!-- Loading -->
+<div class="loading-overlay" id="loading">
+    <div class="spinner"></div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

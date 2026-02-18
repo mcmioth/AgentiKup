@@ -1,0 +1,17 @@
+# Dati sorgente CSV
+*.csv
+
+# Dati generati
+data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Claude Code
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
