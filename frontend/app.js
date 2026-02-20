@@ -318,6 +318,11 @@ function initCigGrid() {
             field: "importo_complessivo_gara", headerName: "Importo Gara",
             width: 150, valueFormatter: p => formatCurrency(p.value), comparator: numComp,
         },
+        {
+            field: "importo_aggiudicazione", headerName: "Importo Agg.",
+            width: 150, valueFormatter: p => formatCurrency(p.value), comparator: numComp,
+        },
+        { field: "criterio_aggiudicazione", headerName: "Criterio Agg.", width: 200 },
         { field: "stato_cig", headerName: "Stato", width: 100 },
         { field: "esito_cig", headerName: "Esito", width: 140 },
         { field: "tipo_scelta_contraente", headerName: "Tipo Contraente", width: 200 },
@@ -435,6 +440,8 @@ const CIG_FILTER_MAPPING = {
     "sezione_regionale": "fc-sezione",
     "modalita_realizzazione": "fc-modalita",
     "strumento_svolgimento": "fc-strumento",
+    "criterio_aggiudicazione": "fc-criterio",
+    "prestazioni_comprese": "fc-prestazioni",
 };
 
 async function loadCigFilterOptions() {
@@ -513,8 +520,14 @@ function buildQueryParams() {
     if (searchCup) params.set("SEARCH_CUP", searchCup);
     const searchCig = document.getElementById("f-cig").value.trim();
     if (searchCig) params.set("SEARCH_CIG", searchCig);
+    const soggetto = document.getElementById("f-soggetto").value.trim();
+    if (soggetto) params.set("SEARCH_SOGGETTO", soggetto);
+    const descrizione = document.getElementById("f-descrizione").value.trim();
+    if (descrizione) params.set("SEARCH_DESCRIZIONE", descrizione);
     const hasCig = document.getElementById("f-hascig").value;
     if (hasCig) params.set("HAS_CIG", hasCig);
+    const hasAggiudicatari = document.getElementById("f-hasaggiudicatari").value;
+    if (hasAggiudicatari) params.set("HAS_AGGIUDICATARI", hasAggiudicatari);
     const costoMin = document.getElementById("f-costo-min").value;
     const costoMax = document.getElementById("f-costo-max").value;
     if (costoMin) params.set("costo_min", costoMin);
@@ -536,7 +549,10 @@ function clearProgettiFields() {
     for (const elId of Object.values(FILTER_MAPPING)) setFilterValue(elId, "");
     document.getElementById("f-cup").value = "";
     document.getElementById("f-cig").value = "";
+    document.getElementById("f-soggetto").value = "";
+    document.getElementById("f-descrizione").value = "";
     document.getElementById("f-hascig").value = "";
+    document.getElementById("f-hasaggiudicatari").value = "";
     document.getElementById("f-costo-min").value = "";
     document.getElementById("f-costo-max").value = "";
 }
@@ -570,9 +586,13 @@ function buildCigQueryParams() {
     if (cigCode) params.set("q", cigCode);  // override search with CIG code
     const cupCode = document.getElementById("fc-cup").value.trim();
     if (cupCode) params.set("q", cupCode);  // override search with CUP code
+    const aggiudicatario = document.getElementById("fc-aggiudicatario").value.trim();
+    if (aggiudicatario) params.set("SEARCH_AGGIUDICATARIO", aggiudicatario);
 
     const pnrr = document.getElementById("fc-pnrr").value;
     if (pnrr) params.set("ONLY_PNRR", pnrr);
+    const subappalto = document.getElementById("fc-subappalto").value;
+    if (subappalto) params.set("FLAG_SUBAPPALTO", subappalto);
     const detail = document.getElementById("fc-detail").value;
     if (detail) params.set("HAS_DETAIL", detail);
     const importoMin = document.getElementById("fc-importo-min").value;
@@ -596,7 +616,9 @@ function clearCigFields() {
     for (const elId of Object.values(CIG_FILTER_MAPPING)) setFilterValue(elId, "");
     document.getElementById("fc-cig").value = "";
     document.getElementById("fc-cup").value = "";
+    document.getElementById("fc-aggiudicatario").value = "";
     document.getElementById("fc-pnrr").value = "";
+    document.getElementById("fc-subappalto").value = "";
     document.getElementById("fc-detail").value = "";
     document.getElementById("fc-importo-min").value = "";
     document.getElementById("fc-importo-max").value = "";
@@ -717,10 +739,18 @@ async function openDetail(cup) {
         }
         body.appendChild(grid);
 
-        // Load CIG data
+        // Load CIG data + aggiudicatari
         const cigResult = await fetchApi(`/api/projects/${encodeURIComponent(cup)}/cig`);
         if (cigResult && cigResult.data && cigResult.data.length > 0) {
-            body.appendChild(buildCigTable(cigResult.data, cigResult.total));
+            const aggResult = await fetchApi(`/api/projects/${encodeURIComponent(cup)}/aggiudicatari`);
+            const aggiudicatariMap = {};
+            if (aggResult && aggResult.data) {
+                for (const a of aggResult.data) {
+                    if (!aggiudicatariMap[a.CIG]) aggiudicatariMap[a.CIG] = [];
+                    aggiudicatariMap[a.CIG].push(a);
+                }
+            }
+            body.appendChild(buildCigTable(cigResult.data, cigResult.total, aggiudicatariMap));
         }
 
         document.getElementById("modal-overlay").classList.add("active");
@@ -765,6 +795,21 @@ async function openCigDetail(cigCode) {
             durata_prevista: "Durata Prevista (gg)", numero_gara: "N. Gara",
             anno_pubblicazione: "Anno Pubblicazione",
             flag_pnrr_pnc: "PNRR/PNC",
+            // Aggiudicazione
+            importo_aggiudicazione: "Importo Aggiudicazione",
+            criterio_aggiudicazione: "Criterio Aggiudicazione",
+            ribasso_aggiudicazione: "Ribasso Aggiudicazione (%)",
+            data_aggiudicazione_definitiva: "Data Aggiudicazione",
+            numero_offerte_ammesse: "Offerte Ammesse",
+            numero_offerte_escluse: "Offerte Escluse",
+            num_imprese_offerenti: "Imprese Offerenti",
+            num_imprese_invitate: "Imprese Invitate",
+            flag_subappalto: "Subappalto",
+            asta_elettronica: "Asta Elettronica",
+            prestazioni_comprese: "Prestazioni Comprese",
+            flag_proc_accelerata: "Proc. Accelerata",
+            massimo_ribasso: "Max Ribasso (%)",
+            minimo_ribasso: "Min Ribasso (%)",
         };
 
         for (const [key, label] of Object.entries(LABELS)) {
@@ -774,11 +819,20 @@ async function openCigDetail(cigCode) {
             item.className = "detail-item";
             if (key.startsWith("importo")) val = formatCurrency(val);
             if (key === "flag_pnrr_pnc") val = val === 1 ? "SI" : "NO";
+            if (key === "flag_subappalto") val = val === true || val === 1 ? "SI" : "NO";
+            if (key === "asta_elettronica") val = val === 1 ? "SI" : "NO";
+            if (key === "flag_proc_accelerata") val = val === 1 ? "SI" : "NO";
             item.innerHTML = `<div class="dl">${label}</div><div class="dv">${escapeHtml(String(val))}</div>`;
             grid.appendChild(item);
         }
 
         body.appendChild(grid);
+
+        // Load aggiudicatari
+        const aggResult = await fetchApi(`/api/cig/${encodeURIComponent(cigCode)}/aggiudicatari`);
+        if (aggResult && aggResult.data && aggResult.data.length > 0) {
+            body.appendChild(buildAggiudicatariTable(aggResult.data));
+        }
 
         // Link to project if CUP exists
         if (cig.CUP && cig.CUP !== "ND" && cig.CUP !== "000000000000000") {
@@ -808,7 +862,7 @@ async function openCigDetail(cigCode) {
 // CIG TABLE (in project detail modal)
 // ============================================
 
-function buildCigTable(cigs, total) {
+function buildCigTable(cigs, total, aggiudicatariMap = {}) {
     const cigSection = document.createElement("div");
     cigSection.style.marginTop = "20px";
 
@@ -822,7 +876,9 @@ function buildCigTable(cigs, total) {
     table.innerHTML = `<thead><tr style="background:var(--bg);text-align:left;">
         <th style="padding:6px 8px;border-bottom:2px solid var(--border);">CIG</th>
         <th style="padding:6px 8px;border-bottom:2px solid var(--border);">Oggetto Gara</th>
-        <th style="padding:6px 8px;border-bottom:2px solid var(--border);">Importo</th>
+        <th style="padding:6px 8px;border-bottom:2px solid var(--border);">Importo Gara</th>
+        <th style="padding:6px 8px;border-bottom:2px solid var(--border);">Aggiudicatario</th>
+        <th style="padding:6px 8px;border-bottom:2px solid var(--border);">Importo Agg.</th>
         <th style="padding:6px 8px;border-bottom:2px solid var(--border);">Stato</th>
         <th style="padding:6px 8px;border-bottom:2px solid var(--border);">Esito</th>
         <th style="padding:6px 8px;border-bottom:2px solid var(--border);"></th>
@@ -831,24 +887,51 @@ function buildCigTable(cigs, total) {
     const tbody = document.createElement("tbody");
     for (const cig of cigs) {
         const hasDet = !!cig.oggetto_gara;
+        const cigAgg = aggiudicatariMap[cig.CIG] || [];
+        const hasExpandable = hasDet || cigAgg.length > 0;
         const pnrrBadge = cig.flag_pnrr_pnc === 1 ? ' <span class="pnrr-badge">PNRR</span>' : "";
 
+        // Primo aggiudicatario (principale) per la riga
+        const mainAgg = cigAgg.length > 0 ? cigAgg[0] : null;
+        const aggLabel = mainAgg
+            ? escapeHtml(mainAgg.denominazione || "-") + (cigAgg.length > 1 ? ` <span style="color:var(--text-secondary);">(+${cigAgg.length - 1})</span>` : "")
+            : "-";
+
         const tr = document.createElement("tr");
-        tr.style.cssText = "border-bottom:1px solid var(--border);cursor:" + (hasDet ? "pointer" : "default");
+        tr.style.cssText = "border-bottom:1px solid var(--border);cursor:" + (hasExpandable ? "pointer" : "default");
         tr.innerHTML = `
             <td style="padding:5px 8px;font-family:monospace;">${escapeHtml(cig.CIG || "")}${pnrrBadge}</td>
-            <td style="padding:5px 8px;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(cig.oggetto_gara || "")}">${escapeHtml(cig.oggetto_gara || "-")}</td>
+            <td style="padding:5px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(cig.oggetto_gara || "")}">${escapeHtml(cig.oggetto_gara || "-")}</td>
             <td style="padding:5px 8px;white-space:nowrap;">${cig.importo_complessivo_gara ? formatCurrency(cig.importo_complessivo_gara) : "-"}</td>
+            <td style="padding:5px 8px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${mainAgg ? escapeAttr(mainAgg.denominazione || "") : ""}">${aggLabel}</td>
+            <td style="padding:5px 8px;white-space:nowrap;">${cig.importo_aggiudicazione ? formatCurrency(cig.importo_aggiudicazione) : "-"}</td>
             <td style="padding:5px 8px;">${escapeHtml(cig.stato_cig || "-")}</td>
             <td style="padding:5px 8px;">${escapeHtml(cig.esito_cig || "-")}</td>
-            <td style="padding:5px 8px;color:var(--primary);">${hasDet ? "&#9660;" : ""}</td>
+            <td style="padding:5px 8px;color:var(--primary);">${hasExpandable ? "&#9660;" : ""}</td>
         `;
 
-        if (hasDet) {
+        if (hasExpandable) {
+            let expandHtml = "";
+            if (hasDet) expandHtml += cigFieldsHtml(cig);
+            if (cigAgg.length > 0) {
+                expandHtml += `<div style="margin-top:${hasDet ? "12px" : "0"};"><strong style="font-size:0.78rem;color:var(--primary);">Aggiudicatari (${cigAgg.length})</strong>`;
+                expandHtml += `<table style="width:100%;border-collapse:collapse;font-size:0.78rem;margin-top:6px;">`;
+                expandHtml += `<thead><tr><th style="padding:4px 6px;text-align:left;border-bottom:1px solid var(--border);">Denominazione</th><th style="padding:4px 6px;text-align:left;border-bottom:1px solid var(--border);">Codice Fiscale</th><th style="padding:4px 6px;text-align:left;border-bottom:1px solid var(--border);">Ruolo</th><th style="padding:4px 6px;text-align:left;border-bottom:1px solid var(--border);">Tipo Soggetto</th></tr></thead><tbody>`;
+                for (const a of cigAgg) {
+                    expandHtml += `<tr style="border-bottom:1px solid var(--border);">
+                        <td style="padding:3px 6px;font-weight:500;">${escapeHtml(a.denominazione || "-")}</td>
+                        <td style="padding:3px 6px;font-family:monospace;">${escapeHtml(a.codice_fiscale || "-")}</td>
+                        <td style="padding:3px 6px;">${escapeHtml(a.ruolo || "-")}</td>
+                        <td style="padding:3px 6px;">${escapeHtml(a.tipo_soggetto || "-")}</td>
+                    </tr>`;
+                }
+                expandHtml += `</tbody></table></div>`;
+            }
+
             const detailRow = document.createElement("tr");
             detailRow.style.display = "none";
-            detailRow.innerHTML = `<td colspan="6" style="padding:8px 16px;background:var(--bg);font-size:0.8rem;">
-                ${cigFieldsHtml(cig)}
+            detailRow.innerHTML = `<td colspan="8" style="padding:8px 16px;background:var(--bg);font-size:0.8rem;">
+                ${expandHtml}
             </td>`;
             tr.addEventListener("click", () => {
                 const open = detailRow.style.display !== "none";
@@ -887,6 +970,15 @@ function cigFieldsHtml(cig) {
         ["Durata Prevista (gg)", cig.durata_prevista],
         ["N. Gara", cig.numero_gara],
         ["Anno Pubblicazione", cig.anno_pubblicazione],
+        // Aggiudicazione
+        ["Importo Aggiudicazione", cig.importo_aggiudicazione ? formatCurrency(cig.importo_aggiudicazione) : null],
+        ["Criterio Aggiudicazione", cig.criterio_aggiudicazione],
+        ["Ribasso (%)", cig.ribasso_aggiudicazione],
+        ["Data Aggiudicazione", cig.data_aggiudicazione_definitiva],
+        ["Offerte Ammesse", cig.numero_offerte_ammesse],
+        ["Imprese Offerenti", cig.num_imprese_offerenti],
+        ["Subappalto", cig.flag_subappalto === true || cig.flag_subappalto === 1 ? "SI" : (cig.flag_subappalto === false || cig.flag_subappalto === 0 ? "NO" : null)],
+        ["Prestazioni Comprese", cig.prestazioni_comprese],
     ];
     return fields
         .filter(([, v]) => v != null && v !== "" && v !== "null")
@@ -896,6 +988,37 @@ function cigFieldsHtml(cig) {
                 <span>${escapeHtml(String(val))}</span>
             </div>`
         ).join("");
+}
+
+function buildAggiudicatariTable(aggiudicatari) {
+    const section = document.createElement("div");
+    section.style.marginTop = "20px";
+    section.innerHTML = `<h4 style="font-size:0.95rem;margin-bottom:10px;color:var(--primary);">Aggiudicatari (${aggiudicatari.length})</h4>`;
+
+    const table = document.createElement("table");
+    table.style.cssText = "width:100%;border-collapse:collapse;font-size:0.82rem;";
+    table.innerHTML = `<thead><tr style="background:var(--bg);text-align:left;">
+        <th style="padding:6px 8px;border-bottom:2px solid var(--border);">Denominazione</th>
+        <th style="padding:6px 8px;border-bottom:2px solid var(--border);">Codice Fiscale</th>
+        <th style="padding:6px 8px;border-bottom:2px solid var(--border);">Ruolo</th>
+        <th style="padding:6px 8px;border-bottom:2px solid var(--border);">Tipo Soggetto</th>
+    </tr></thead>`;
+
+    const tbody = document.createElement("tbody");
+    for (const a of aggiudicatari) {
+        const tr = document.createElement("tr");
+        tr.style.cssText = "border-bottom:1px solid var(--border);";
+        tr.innerHTML = `
+            <td style="padding:5px 8px;font-weight:500;">${escapeHtml(a.denominazione || "-")}</td>
+            <td style="padding:5px 8px;font-family:monospace;">${escapeHtml(a.codice_fiscale || "-")}</td>
+            <td style="padding:5px 8px;">${escapeHtml(a.ruolo || "-")}</td>
+            <td style="padding:5px 8px;">${escapeHtml(a.tipo_soggetto || "-")}</td>
+        `;
+        tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    section.appendChild(table);
+    return section;
 }
 
 function closeDetail() {

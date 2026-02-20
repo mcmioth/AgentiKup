@@ -55,8 +55,27 @@
         </div>
 
         <div class="filter-group">
+            <label for="f-soggetto">Soggetto Titolare</label>
+            <input type="text" id="f-soggetto" placeholder="Es. Comune di Roma">
+        </div>
+
+        <div class="filter-group">
+            <label for="f-descrizione">Descrizione Sintetica</label>
+            <input type="text" id="f-descrizione" placeholder="Es. manutenzione">
+        </div>
+
+        <div class="filter-group">
             <label for="f-hascig">Ha CIG</label>
             <select id="f-hascig">
+                <option value="">Tutti</option>
+                <option value="SI">Si</option>
+                <option value="NO">No</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="f-hasaggiudicatari">Ha Aggiudicatari</label>
+            <select id="f-hasaggiudicatari">
                 <option value="">Tutti</option>
                 <option value="SI">Si</option>
                 <option value="NO">No</option>
@@ -177,6 +196,11 @@
             <input type="text" id="fc-cup" placeholder="Es. J11B15000300001">
         </div>
 
+        <div class="filter-group">
+            <label for="fc-aggiudicatario">Aggiudicatario</label>
+            <input type="text" id="fc-aggiudicatario" placeholder="Es. CampuStore">
+        </div>
+
         <h3 style="margin-top:20px;">Filtri</h3>
 
         <div class="filter-group">
@@ -224,6 +248,16 @@
             <div id="fc-strumento" data-ss data-placeholder="Tutti"></div>
         </div>
 
+        <div class="filter-group">
+            <label>Criterio Aggiudicazione</label>
+            <div id="fc-criterio" data-ss data-placeholder="Tutti"></div>
+        </div>
+
+        <div class="filter-group">
+            <label>Prestazioni Comprese</label>
+            <div id="fc-prestazioni" data-ss data-placeholder="Tutte"></div>
+        </div>
+
         <h3 style="margin-top:20px;">Altro</h3>
 
         <div class="filter-group">
@@ -231,6 +265,15 @@
             <select id="fc-pnrr">
                 <option value="">Tutti</option>
                 <option value="SI">Si</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="fc-subappalto">Subappalto</label>
+            <select id="fc-subappalto">
+                <option value="">Tutti</option>
+                <option value="SI">Si</option>
+                <option value="NO">No</option>
             </select>
         </div>
 

@@ -26,7 +26,8 @@ scripts/
   convert_to_parquet.py  # Converte CSV OpenCUP + Localizzazione + Soggetti + CIG in Parquet
 data/
   progetti.parquet       # ~11.5M righe, join Progetti+Localizzazione+Soggetti
-  cig.parquet            # CIG con dettagli gara (mappatura CIG-CUP + dettagli da zip JSON)
+  cig.parquet            # CIG con dettagli gara + aggiudicazioni (mappatura CIG-CUP + dettagli + aggiudicazioni da zip JSON)
+  aggiudicatari.parquet  # Aggiudicatari per CIG (1:N, denominazione, CF, ruolo, tipo soggetto)
   stats.json             # Statistiche pre-aggregate
 ```
 
@@ -55,6 +56,7 @@ Se i file Parquet non esistono, eseguire prima: `python scripts/convert_to_parqu
 | `GET /api/cig/filters/options` | Valori distinti per dropdown filtri CIG |
 | `GET /api/cig/search` | Ricerca CIG paginata |
 | `GET /api/cig/{cig}` | Dettaglio completo CIG |
+| `GET /api/cig/{cig}/aggiudicatari` | Aggiudicatari associati a un CIG |
 | `GET /api/cig/export` | Export CSV CIG filtrati (max 100k) |
 | `GET /api/aggregations/{field}` | Aggregazione dinamica per campo |
 
@@ -62,10 +64,10 @@ Se i file Parquet non esistono, eseguire prima: `python scripts/convert_to_parqu
 
 - **Due tab**: Progetti e CIG, con sidebar filtri dedicata per ciascuno
 - **Filtri progetti**: CUP, CIG, ha CIG, categoria/sottocategoria soggetto, localizzazione (area geo/regione/provincia/comune), stato, anno, settore, natura, area, categoria/sottosettore/tipologia intervento, strumento programmazione, tipologia CUP, range costo
-- **Filtri CIG**: codice CIG/CUP, stato, esito, settore, tipo scelta contraente, anno pubblicazione, provincia, sezione regionale, modalita realizzazione, strumento svolgimento, solo PNRR, solo con dettaglio, range importo
+- **Filtri CIG**: codice CIG/CUP, stato, esito, settore, tipo scelta contraente, anno pubblicazione, provincia, sezione regionale, modalita realizzazione, strumento svolgimento, criterio aggiudicazione, prestazioni comprese, solo PNRR, subappalto, solo con dettaglio, range importo
 - **Filtri di default** (tab Progetti): Categoria Soggetto = "UNIVERSITA' ED ALTRI ENTI DI ISTRUZIONE", Sottocategoria = "ISTITUTI PUBBLICI DI ISTRUZIONE SCOLASTICA"
 - **SearchableSelect**: componente custom per filtri con molti valori (autocomplete con ricerca)
-- **Modale dettaglio**: click su riga apre dettaglio completo + tabella CIG associati (per progetti)
+- **Modale dettaglio**: click su riga apre dettaglio completo + tabella CIG associati (per progetti) + dati aggiudicazione e tabella aggiudicatari (per CIG)
 - **Paginazione server-side**: 50 risultati per pagina
 - **Ordinamento server-side**: click header colonna AG Grid
 - **Export CSV**: esporta risultati filtrati (max 100k righe, separatore `;`)
@@ -90,14 +92,16 @@ I file sorgente vanno posizionati nella root del progetto per la conversione:
 - `OpenCup_Fonti_Copertura.csv` (non ancora usato)
 - `cup_json/cup_json.json` (mappatura CIG-CUP)
 - `cup_json/cig_json_*.zip` (dettagli gara mensili, ~72 file zip)
+- `cup_json/*-aggiudicazioni_json.zip` (esiti aggiudicazione per CIG, mensili)
+- `cup_json/*-aggiudicatari_json.zip` (aggiudicatari per CIG, mensili)
 
 Tutti i file sorgente sono in `.gitignore` (*.csv, data/).
 
 ## Aggiornamento dati
 
-1. Posizionare i CSV nella root del progetto e la cartella `cup_json/` con i JSON/zip
+1. Posizionare i CSV nella root del progetto e la cartella `cup_json/` con i JSON/zip (inclusi aggiudicazioni e aggiudicatari)
 2. Eseguire `python scripts/convert_to_parquet.py`
-3. Verificare che `data/progetti.parquet`, `data/cig.parquet` e `data/stats.json` siano stati generati
+3. Verificare che `data/progetti.parquet`, `data/cig.parquet`, `data/aggiudicatari.parquet` e `data/stats.json` siano stati generati
 4. (Opzionale) Eliminare i CSV sorgente per risparmiare spazio
 
 ## Deploy (Hostinger VPS)
@@ -125,6 +129,7 @@ cd /opt/AgentiKup && git pull && systemctl restart agentikup
 ```bash
 scp data/progetti.parquet root@72.62.93.58:/opt/AgentiKup/data/
 scp data/cig.parquet root@72.62.93.58:/opt/AgentiKup/data/
+scp data/aggiudicatari.parquet root@72.62.93.58:/opt/AgentiKup/data/
 scp data/stats.json root@72.62.93.58:/opt/AgentiKup/data/
 ssh root@72.62.93.58 "systemctl restart agentikup"
 ```

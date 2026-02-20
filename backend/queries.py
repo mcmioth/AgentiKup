@@ -12,11 +12,13 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 PARQUET_FILE = os.path.join(DATA_DIR, "progetti.parquet").replace(os.sep, "/")
 CIG_PARQUET = os.path.join(DATA_DIR, "cig.parquet").replace(os.sep, "/")
+AGGIUDICATARI_PARQUET = os.path.join(DATA_DIR, "aggiudicatari.parquet").replace(os.sep, "/")
 STATS_FILE = os.path.join(DATA_DIR, "stats.json")
 
 # Colonne CIG mostrate nella tabella
 CIG_DEFAULT_COLUMNS = [
     "CIG", "CUP", "oggetto_gara", "importo_complessivo_gara",
+    "importo_aggiudicazione", "criterio_aggiudicazione",
     "stato_cig", "esito_cig", "tipo_scelta_contraente",
     "amm_appaltante", "data_pubblicazione", "provincia_cig",
     "anno_pubblicazione", "flag_pnrr_pnc",
@@ -27,6 +29,7 @@ CIG_FILTER_COLUMNS = [
     "stato_cig", "esito_cig", "settore_cig", "tipo_scelta_contraente",
     "anno_pubblicazione", "provincia_cig", "sezione_regionale",
     "modalita_realizzazione", "strumento_svolgimento",
+    "criterio_aggiudicazione", "prestazioni_comprese",
 ]
 
 # Colonne CIG ricercabili
@@ -35,7 +38,10 @@ CIG_SEARCH_COLUMNS = ["CIG", "CUP", "oggetto_gara", "amm_appaltante"]
 # Colonne CIG numeriche per ordinamento
 CIG_NUMERIC_COLUMNS = {
     "importo_complessivo_gara", "importo_lotto",
+    "importo_aggiudicazione", "ribasso_aggiudicazione",
     "anno_pubblicazione", "durata_prevista", "flag_pnrr_pnc",
+    "numero_offerte_ammesse", "numero_offerte_escluse",
+    "num_imprese_offerenti",
 }
 
 # Tutte le colonne CIG
@@ -49,6 +55,19 @@ CIG_ALL_COLUMNS = [
     "numero_gara", "cf_amm_appaltante", "flag_pnrr_pnc",
     "oggetto_principale_contratto", "data_ultimo_perfezionamento",
     "data_comunicazione_esito",
+    # Colonne aggiudicazione
+    "importo_aggiudicazione", "criterio_aggiudicazione",
+    "ribasso_aggiudicazione", "data_aggiudicazione_definitiva",
+    "numero_offerte_ammesse", "numero_offerte_escluse",
+    "num_imprese_offerenti", "flag_subappalto", "asta_elettronica",
+    "prestazioni_comprese", "flag_proc_accelerata",
+    "num_imprese_invitate", "massimo_ribasso", "minimo_ribasso",
+]
+
+# Colonne aggiudicatari
+AGGIUDICATARI_COLUMNS = [
+    "CIG", "codice_fiscale", "denominazione", "ruolo",
+    "tipo_soggetto", "id_aggiudicazione",
 ]
 
 # Colonne mostrate di default nella tabella
@@ -188,6 +207,28 @@ class Database:
                 where_clauses.append(
                     f"CUP NOT IN (SELECT DISTINCT CUP FROM '{CIG_PARQUET}')"
                 )
+
+            # Filtro Ha Aggiudicatari (CUP con almeno un CIG che ha aggiudicatari)
+            if filters.get("HAS_AGGIUDICATARI") == "SI":
+                where_clauses.append(
+                    f"CUP IN (SELECT DISTINCT c.CUP FROM '{CIG_PARQUET}' c "
+                    f"WHERE c.CIG IN (SELECT DISTINCT CIG FROM '{AGGIUDICATARI_PARQUET}'))"
+                )
+            elif filters.get("HAS_AGGIUDICATARI") == "NO":
+                where_clauses.append(
+                    f"CUP NOT IN (SELECT DISTINCT c.CUP FROM '{CIG_PARQUET}' c "
+                    f"WHERE c.CIG IN (SELECT DISTINCT CIG FROM '{AGGIUDICATARI_PARQUET}'))"
+                )
+
+            # Ricerca Soggetto Titolare (contiene)
+            if filters.get("SEARCH_SOGGETTO"):
+                where_clauses.append("LOWER(SOGGETTO_TITOLARE) LIKE ?")
+                params.append(f"%{filters['SEARCH_SOGGETTO'].lower()}%")
+
+            # Ricerca Descrizione Sintetica (contiene)
+            if filters.get("SEARCH_DESCRIZIONE"):
+                where_clauses.append('LOWER("DESCRIZIONE_SINTETICA_CUP") LIKE ?')
+                params.append(f"%{filters['SEARCH_DESCRIZIONE'].lower()}%")
 
             # Ricerca CUP dedicata (match prefisso)
             if filters.get("SEARCH_CUP"):
@@ -419,6 +460,11 @@ class Database:
             if filters.get("ONLY_PNRR") == "SI":
                 where_clauses.append("flag_pnrr_pnc = 1")
 
+            if filters.get("FLAG_SUBAPPALTO") == "SI":
+                where_clauses.append("flag_subappalto = true")
+            elif filters.get("FLAG_SUBAPPALTO") == "NO":
+                where_clauses.append("flag_subappalto = false")
+
             if filters.get("HAS_DETAIL") == "SI":
                 where_clauses.append("oggetto_gara IS NOT NULL")
 
@@ -487,9 +533,23 @@ class Database:
             if filters.get("ONLY_PNRR") == "SI":
                 where_clauses.append("flag_pnrr_pnc = 1")
 
+            # Flag subappalto
+            if filters.get("FLAG_SUBAPPALTO") == "SI":
+                where_clauses.append("flag_subappalto = true")
+            elif filters.get("FLAG_SUBAPPALTO") == "NO":
+                where_clauses.append("flag_subappalto = false")
+
             # Solo con dettaglio
             if filters.get("HAS_DETAIL") == "SI":
                 where_clauses.append("oggetto_gara IS NOT NULL")
+
+            # Ricerca aggiudicatario per denominazione
+            if filters.get("SEARCH_AGGIUDICATARIO"):
+                where_clauses.append(
+                    f"CIG IN (SELECT DISTINCT CIG FROM '{AGGIUDICATARI_PARQUET}' "
+                    f"WHERE LOWER(denominazione) LIKE ?)"
+                )
+                params.append(f"%{filters['SEARCH_AGGIUDICATARIO'].lower()}%")
 
             # Range importo
             if filters.get("importo_min"):
@@ -575,3 +635,38 @@ class Database:
             return []
 
         return [r[0] for r in rows]
+
+    def get_aggiudicatari_for_cig(self, cig):
+        """Ritorna gli aggiudicatari associati a un CIG."""
+        try:
+            rows = self.con.execute(f"""
+                SELECT *
+                FROM '{AGGIUDICATARI_PARQUET}'
+                WHERE CIG = ?
+                ORDER BY ruolo NULLS LAST, denominazione
+            """, [cig]).fetchall()
+        except Exception:
+            return []
+
+        if not rows:
+            return []
+        cols = [desc[0] for desc in self.con.description]
+        return [dict(zip(cols, row)) for row in rows]
+
+    def get_aggiudicatari_for_cup(self, cup):
+        """Ritorna gli aggiudicatari di tutti i CIG associati a un CUP."""
+        try:
+            rows = self.con.execute(f"""
+                SELECT a.*
+                FROM '{AGGIUDICATARI_PARQUET}' a
+                INNER JOIN '{CIG_PARQUET}' c ON a.CIG = c.CIG
+                WHERE c.CUP = ?
+                ORDER BY a.CIG, a.ruolo NULLS LAST, a.denominazione
+            """, [cup]).fetchall()
+        except Exception:
+            return []
+
+        if not rows:
+            return []
+        cols = [desc[0] for desc in self.con.description]
+        return [dict(zip(cols, row)) for row in rows]

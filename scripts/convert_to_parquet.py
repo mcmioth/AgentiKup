@@ -23,8 +23,33 @@ SOGG_CSV = os.path.join(CSV_DIR, "OpenCup_Soggetti.csv").replace(os.sep, "/")
 CIG_CUP_JSON = os.path.join(CSV_DIR, "cup_json", "cup_json.json").replace(os.sep, "/")
 CIG_DETAIL_DIR = os.path.join(CSV_DIR, "cup_json").replace(os.sep, "/")
 CIG_PARQUET = os.path.join(DATA_DIR, "cig.parquet")
+AGGIUDICATARI_PARQUET = os.path.join(DATA_DIR, "aggiudicatari.parquet")
 
 os.makedirs(DATA_DIR, exist_ok=True)
+
+
+def extract_zips_by_pattern(directory, pattern_prefix, pattern_suffix=".zip"):
+    """Trova e estrae file zip che matchano un pattern. Ritorna lista di path JSON estratti."""
+    native_dir = directory.replace("/", os.sep)
+    zip_files = sorted([
+        os.path.join(directory, f)
+        for f in os.listdir(native_dir)
+        if f.endswith(pattern_suffix) and pattern_prefix in f
+    ])
+    if not zip_files:
+        return [], None
+
+    tmp_dir = tempfile.mkdtemp(prefix=f"{pattern_prefix}_extract_")
+    tmp_dir_fwd = tmp_dir.replace(os.sep, "/")
+    json_paths = []
+    for zpath in zip_files:
+        zf = zipfile.ZipFile(zpath.replace("/", os.sep))
+        inner = zf.namelist()[0]
+        zf.extract(inner, tmp_dir)
+        json_paths.append(f"{tmp_dir_fwd}/{inner}")
+        zf.close()
+
+    return json_paths, tmp_dir
 
 
 def get_csv_files():
@@ -140,21 +165,115 @@ def generate_stats(con):
     print(f"  Tempo: {elapsed:.1f}s")
 
 
+def load_aggiudicazioni(con, detail_dir):
+    """Carica e deduplica i dati aggiudicazioni da zip in cup_json/."""
+    print("\n  --- Caricamento Aggiudicazioni ---")
+    json_paths, tmp_dir = extract_zips_by_pattern(detail_dir, "-aggiudicazioni_json")
+    if not json_paths:
+        print("  Nessun file aggiudicazioni trovato")
+        return False
+
+    print(f"  Estratti {len(json_paths)} file JSON aggiudicazioni")
+
+    json_list = ", ".join(f"'{p}'" for p in json_paths)
+    con.execute(f"""
+        CREATE OR REPLACE TEMP TABLE agg_raw AS
+        SELECT *
+        FROM read_json([{json_list}],
+            format = 'newline_delimited',
+            union_by_name = true,
+            ignore_errors = true
+        )
+    """)
+    raw_count = con.execute("SELECT COUNT(*) FROM agg_raw").fetchone()[0]
+    print(f"  Aggiudicazioni totali (con duplicati): {raw_count:,}")
+
+    # Dedup per CIG: tieni il record con id_aggiudicazione piu alto
+    con.execute("""
+        CREATE OR REPLACE TEMP TABLE aggiudicazioni AS
+        SELECT DISTINCT ON (cig) *
+        FROM agg_raw
+        ORDER BY cig, id_aggiudicazione DESC NULLS LAST
+    """)
+    dedup_count = con.execute("SELECT COUNT(*) FROM aggiudicazioni").fetchone()[0]
+    print(f"  Aggiudicazioni uniche per CIG: {dedup_count:,}")
+
+    con.execute("DROP TABLE agg_raw")
+    if tmp_dir:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+    return True
+
+
 def convert_cig_to_parquet(con):
-    """Converte la mappatura CIG-CUP + dettagli CIG (da 72 zip) in un Parquet."""
+    """Converte la mappatura CIG-CUP + dettagli CIG + aggiudicazioni in un Parquet."""
     print("\n--- Conversione CIG -> Parquet ---")
     start = time.time()
 
-    cig_cup = CIG_CUP_JSON.replace(os.sep, "/")
+    cig_cup_path = CIG_CUP_JSON.replace(os.sep, "/")
     cig_pq = CIG_PARQUET.replace(os.sep, "/")
     detail_dir = CIG_DETAIL_DIR.replace(os.sep, "/")
 
-    # Carica mappatura CIG-CUP
+    has_mapping = os.path.exists(CIG_CUP_JSON.replace("/", os.sep))
+    has_existing_pq = os.path.exists(CIG_PARQUET)
+
+    # Se mancano i file sorgente originali ma esiste il parquet, arricchisci con aggiudicazioni
+    if not has_mapping and has_existing_pq:
+        print("  Mappatura CIG-CUP non trovata, uso cig.parquet esistente come base")
+        has_agg = load_aggiudicazioni(con, detail_dir)
+        if not has_agg:
+            print("  Nessuna aggiudicazione da aggiungere, skip")
+            return
+
+        # Backup e ricostruisci con JOIN aggiudicazioni
+        backup_pq = cig_pq.replace(".parquet", "_backup.parquet")
+        import shutil as sh
+        sh.copy2(CIG_PARQUET, CIG_PARQUET.replace(".parquet", "_backup.parquet"))
+
+        print("  Join CIG esistente + aggiudicazioni...")
+        con.execute(f"""
+            COPY (
+                SELECT
+                    c.*,
+                    a.importo_aggiudicazione,
+                    a.criterio_aggiudicazione,
+                    a.ribasso_aggiudicazione,
+                    a.data_aggiudicazione_definitiva,
+                    a.numero_offerte_ammesse,
+                    a.numero_offerte_escluse,
+                    a.num_imprese_offerenti,
+                    a.flag_subappalto,
+                    a.asta_elettronica,
+                    a.PRESTAZIONI_COMPRESE as prestazioni_comprese,
+                    a.FLAG_PROC_ACCELERATA as flag_proc_accelerata,
+                    a.num_imprese_invitate,
+                    a.massimo_ribasso,
+                    a.minimo_ribasso
+                FROM '{backup_pq}' c
+                LEFT JOIN aggiudicazioni a ON c.CIG = a.cig
+            ) TO '{cig_pq}'
+            (FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 100000)
+        """)
+
+        # Rimuovi backup
+        os.remove(CIG_PARQUET.replace(".parquet", "_backup.parquet"))
+
+        elapsed = time.time() - start
+        size_mb = os.path.getsize(CIG_PARQUET) / (1024**2)
+        print(f"  CIG Parquet aggiornato: {CIG_PARQUET}")
+        print(f"  Dimensione: {size_mb:.1f} MB")
+        print(f"  Tempo: {elapsed:.1f}s")
+        return
+
+    if not has_mapping:
+        print("  Mappatura CIG-CUP non trovata e nessun parquet esistente, skip")
+        return
+
+    # Percorso completo da sorgenti originali
     print("  Caricamento mappatura CIG-CUP...")
     con.execute(f"""
         CREATE OR REPLACE TEMP TABLE cig_cup AS
         SELECT CIG, CUP
-        FROM read_json('{cig_cup}',
+        FROM read_json('{cig_cup_path}',
             format = 'newline_delimited',
             columns = {{'CIG': 'VARCHAR', 'CUP': 'VARCHAR'}}
         )
@@ -170,6 +289,7 @@ def convert_cig_to_parquet(con):
     ])
     print(f"  Trovati {len(zip_files)} file zip CIG dettaglio")
 
+    has_detail = False
     if zip_files:
         # Estrai tutti i JSON in una cartella temporanea
         tmp_dir = tempfile.mkdtemp(prefix="cig_extract_")
@@ -214,8 +334,34 @@ def convert_cig_to_parquet(con):
 
         # Pulizia temp
         con.execute("DROP TABLE cig_det_raw")
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        has_detail = True
 
-        # Join mappatura + dettagli arricchiti
+    # Carica aggiudicazioni (se disponibili)
+    has_agg = load_aggiudicazioni(con, detail_dir)
+
+    # Join mappatura + dettagli + aggiudicazioni
+    if has_detail:
+        agg_cols = ""
+        agg_join = ""
+        if has_agg:
+            agg_cols = """,
+                    a.importo_aggiudicazione,
+                    a.criterio_aggiudicazione,
+                    a.ribasso_aggiudicazione,
+                    a.data_aggiudicazione_definitiva,
+                    a.numero_offerte_ammesse,
+                    a.numero_offerte_escluse,
+                    a.num_imprese_offerenti,
+                    a.flag_subappalto,
+                    a.asta_elettronica,
+                    a.PRESTAZIONI_COMPRESE as prestazioni_comprese,
+                    a.FLAG_PROC_ACCELERATA as flag_proc_accelerata,
+                    a.num_imprese_invitate,
+                    a.massimo_ribasso,
+                    a.minimo_ribasso"""
+            agg_join = "LEFT JOIN aggiudicazioni a ON m.CIG = a.cig"
+
         print("  Join e scrittura Parquet CIG...")
         con.execute(f"""
             COPY (
@@ -245,14 +391,13 @@ def convert_cig_to_parquet(con):
                     d.oggetto_principale_contratto,
                     d.DATA_ULTIMO_PERFEZIONAMENTO as data_ultimo_perfezionamento,
                     d.DATA_COMUNICAZIONE_ESITO as data_comunicazione_esito
+                    {agg_cols}
                 FROM cig_cup m
                 LEFT JOIN cig_det d ON m.CIG = d.cig
+                {agg_join}
             ) TO '{cig_pq}'
             (FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 100000)
         """)
-
-        # Pulizia cartella temporanea
-        shutil.rmtree(tmp_dir, ignore_errors=True)
     else:
         print("  Nessun file zip CIG trovato, solo mappatura...")
         con.execute(f"""
@@ -267,24 +412,94 @@ def convert_cig_to_parquet(con):
     print(f"  Tempo: {elapsed:.1f}s")
 
 
-def main():
-    csv_files = get_csv_files()
-    if not csv_files:
-        print("Nessun file CSV trovato!")
+def convert_aggiudicatari_to_parquet(con):
+    """Converte i file aggiudicatari da zip JSON in Parquet."""
+    print("\n--- Conversione Aggiudicatari -> Parquet ---")
+    start = time.time()
+
+    detail_dir = CIG_DETAIL_DIR.replace(os.sep, "/")
+    agg_pq = AGGIUDICATARI_PARQUET.replace(os.sep, "/")
+
+    json_paths, tmp_dir = extract_zips_by_pattern(detail_dir, "-aggiudicatari_json")
+    if not json_paths:
+        print("  Nessun file aggiudicatari trovato, skip")
         return
 
-    has_loc = os.path.exists(LOC_CSV.replace("/", os.sep))
-    print(f"File Localizzazione: {'trovato' if has_loc else 'NON trovato'}")
-    if not has_loc:
-        print("ATTENZIONE: senza Localizzazione non ci saranno dati geografici")
+    print(f"  Estratti {len(json_paths)} file JSON aggiudicatari")
 
+    json_list = ", ".join(f"'{p}'" for p in json_paths)
+    con.execute(f"""
+        CREATE OR REPLACE TEMP TABLE aggt_raw AS
+        SELECT *
+        FROM read_json([{json_list}],
+            format = 'newline_delimited',
+            union_by_name = true,
+            ignore_errors = true
+        )
+    """)
+    raw_count = con.execute("SELECT COUNT(*) FROM aggt_raw").fetchone()[0]
+    print(f"  Aggiudicatari totali (con duplicati): {raw_count:,}")
+
+    # Dedup per (CIG + codice_fiscale): tieni il record con id_aggiudicazione piu alto
+    con.execute("""
+        CREATE OR REPLACE TEMP TABLE aggt_dedup AS
+        SELECT DISTINCT ON (cig, codice_fiscale) *
+        FROM aggt_raw
+        ORDER BY cig, codice_fiscale, id_aggiudicazione DESC NULLS LAST
+    """)
+    dedup_count = con.execute("SELECT COUNT(*) FROM aggt_dedup").fetchone()[0]
+    print(f"  Aggiudicatari unici (CIG + CF): {dedup_count:,}")
+
+    con.execute(f"""
+        COPY (
+            SELECT
+                cig as CIG,
+                TRIM(codice_fiscale) as codice_fiscale,
+                TRIM(denominazione) as denominazione,
+                ruolo,
+                tipo_soggetto,
+                id_aggiudicazione
+            FROM aggt_dedup
+            ORDER BY cig, ruolo NULLS LAST, denominazione
+        ) TO '{agg_pq}'
+        (FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 100000)
+    """)
+
+    con.execute("DROP TABLE aggt_raw")
+    con.execute("DROP TABLE aggt_dedup")
+    if tmp_dir:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    elapsed = time.time() - start
+    size_mb = os.path.getsize(AGGIUDICATARI_PARQUET) / (1024**2)
+    print(f"  Aggiudicatari Parquet creato: {AGGIUDICATARI_PARQUET}")
+    print(f"  Dimensione: {size_mb:.1f} MB")
+    print(f"  Tempo: {elapsed:.1f}s")
+
+
+def main():
     con = duckdb.connect()
     con.execute("SET memory_limit = '8GB'")
     con.execute("SET threads TO 4")
 
-    convert_csv_to_parquet(con, csv_files)
+    csv_files = get_csv_files()
+    if csv_files:
+        has_loc = os.path.exists(LOC_CSV.replace("/", os.sep))
+        print(f"File Localizzazione: {'trovato' if has_loc else 'NON trovato'}")
+        if not has_loc:
+            print("ATTENZIONE: senza Localizzazione non ci saranno dati geografici")
+        convert_csv_to_parquet(con, csv_files)
+    elif os.path.exists(PARQUET_FILE):
+        print("Nessun CSV trovato, ma progetti.parquet esiste gia. Skip conversione progetti.")
+    else:
+        print("Nessun file CSV trovato e nessun parquet esistente!")
+        con.close()
+        return
+
     convert_cig_to_parquet(con)
-    generate_stats(con)
+    convert_aggiudicatari_to_parquet(con)
+    if csv_files:
+        generate_stats(con)
 
     # Verifica
     pq = PARQUET_FILE.replace(os.sep, '/')
@@ -305,6 +520,25 @@ def main():
         FROM '{cig_pq}'
     """).fetchone()
     print(f"CIG totali: {r[0]:,} | CIG unici: {r[1]:,} | CUP collegati: {r[2]:,}")
+
+    # Verifica aggiudicatari
+    agg_pq = AGGIUDICATARI_PARQUET.replace(os.sep, '/')
+    if os.path.exists(AGGIUDICATARI_PARQUET):
+        r = con.execute(f"""
+            SELECT COUNT(*) as tot, COUNT(DISTINCT CIG) as cig_unici
+            FROM '{agg_pq}'
+        """).fetchone()
+        print(f"Aggiudicatari totali: {r[0]:,} | CIG con aggiudicatari: {r[1]:,}")
+
+    # Verifica aggiudicazioni nel CIG parquet
+    try:
+        r = con.execute(f"""
+            SELECT COUNT(*) FROM '{cig_pq}'
+            WHERE importo_aggiudicazione IS NOT NULL
+        """).fetchone()
+        print(f"CIG con dati aggiudicazione: {r[0]:,}")
+    except Exception:
+        pass
 
     con.close()
     print("\nConversione completata!")

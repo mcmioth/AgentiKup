@@ -101,6 +101,13 @@ def get_cig_for_project(cup: str):
     return {"data": cigs, "total": len(cigs)}
 
 
+@app.get("/api/projects/{cup}/aggiudicatari")
+def get_aggiudicatari_for_project(cup: str):
+    """Aggiudicatari di tutti i CIG associati a un CUP."""
+    results = db.get_aggiudicatari_for_cup(cup)
+    return {"data": results, "total": len(results)}
+
+
 @app.get("/api/projects/{cup}")
 def get_project(cup: str):
     """Dettaglio completo di un progetto per CUP."""
@@ -164,6 +171,13 @@ def export_cig_csv(
             "Content-Disposition": "attachment; filename=cig_export.csv"
         },
     )
+
+
+@app.get("/api/cig/{cig}/aggiudicatari")
+def get_cig_aggiudicatari(cig: str):
+    """Aggiudicatari associati a un CIG."""
+    results = db.get_aggiudicatari_for_cig(cig)
+    return {"data": results, "total": len(results)}
 
 
 @app.get("/api/cig/{cig}")
