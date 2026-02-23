@@ -11,16 +11,19 @@ Dashboard web per esplorare i dati OpenCUP (Comitato per la programmazione econo
 - **Frontend**: HTML/CSS/JS vanilla + AG Grid Community 32.3.3
 - **Font**: Plus Jakarta Sans (Google Fonts)
 - **Dati**: file Parquet compressi ZSTD in `data/`
+- **Auth**: sessione cookie firmata (itsdangerous), credenziali verificate via API AgenTik (PHP)
+- **Dipendenze extra**: httpx, itsdangerous, python-multipart
 
 ## Struttura progetto
 
 ```
 backend/
-  main.py          # FastAPI app, API REST, serve frontend statico
+  main.py          # FastAPI app, API REST, auth middleware, serve frontend statico
   queries.py       # Classe Database con tutte le query DuckDB
 frontend/
   index.html       # Layout: header, sidebar filtri, griglia AG Grid, modale dettaglio
-  app.js           # Logica frontend: tab switching, filtri, paginazione, modali
+  login.html       # Pagina di login (credenziali AgenTik)
+  app.js           # Logica frontend: tab switching, filtri, paginazione, modali, logout
   style.css        # Design system con CSS variables (colore primario: #ef9135)
 scripts/
   convert_to_parquet.py  # Converte CSV OpenCUP + Localizzazione + Soggetti + CIG in Parquet
@@ -39,7 +42,7 @@ bash run.sh
 uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Prerequisiti: `pip install -r requirements.txt` (fastapi, uvicorn, duckdb, pyarrow)
+Prerequisiti: `pip install -r requirements.txt` (fastapi, uvicorn, duckdb, pyarrow, httpx, itsdangerous, python-multipart)
 
 Se i file Parquet non esistono, eseguire prima: `python scripts/convert_to_parquet.py`
 
@@ -47,6 +50,9 @@ Se i file Parquet non esistono, eseguire prima: `python scripts/convert_to_parqu
 
 | Endpoint | Descrizione |
 |---|---|
+| `POST /api/auth/login` | Login (email+password → verifica via AgenTik API → cookie sessione) |
+| `POST /api/auth/logout` | Logout (cancella cookie sessione) |
+| `GET /api/auth/me` | Dati utente corrente dalla sessione |
 | `GET /api/stats` | Statistiche pre-aggregate (da stats.json) |
 | `GET /api/filters/options` | Valori distinti per dropdown filtri progetti |
 | `GET /api/projects` | Ricerca progetti paginata (q, filtri, sort, limit/offset) |
@@ -72,6 +78,8 @@ Se i file Parquet non esistono, eseguire prima: `python scripts/convert_to_parqu
 - **Ordinamento server-side**: click header colonna AG Grid
 - **Export CSV**: esporta risultati filtrati (max 100k righe, separatore `;`)
 - **Responsive**: sidebar collassabile su mobile
+- **Login**: pagina dedicata `/login.html`, redirect automatico se non autenticato
+- **Logout**: pulsante "Esci" nell'header con nome utente
 
 ## Convenzioni codice
 
@@ -110,7 +118,7 @@ Tutti i file sorgente sono in `.gitignore` (*.csv, data/).
 - **IP**: 72.62.93.58
 - **OS**: Ubuntu 24.04 LTS
 - **Accesso SSH**: `ssh root@72.62.93.58`
-- **Autenticazione**: nginx Basic Auth (username: `agentikup`, file: `/etc/nginx/.htpasswd`)
+- **Autenticazione**: sessione cookie firmata via API AgenTik (nginx Basic Auth rimosso)
 - **App path**: `/opt/AgentiKup`
 - **Venv**: `/opt/AgentiKup/venv`
 - **Servizio**: `systemctl {start|stop|restart|status} agentikup`
@@ -141,3 +149,44 @@ ssh root@72.62.93.58 "systemctl restart agentikup"
 - La conversione CSV->Parquet fa JOIN con Localizzazione e Soggetti e dedup per CUP/PIVA
 - I CIG vengono deduplicati per codice CIG tenendo il record piu recente
 - Le colonne numeriche (costo, finanziamento) sono stringhe nel Parquet, cast con `TRY_CAST` nelle query
+
+## Autenticazione
+
+Integrazione con **AgenTik** (`https://campusagentik.com/`, PHP/MySQL su Hostinger shared hosting).
+
+### Flusso
+
+1. Utente apre `http://72.62.93.58` → middleware redirige a `/login.html`
+2. Submit form → `POST /api/auth/login` → backend chiama `POST https://campusagentik.com/api/verify-auth.php` con email, password e header `X-API-Key`
+3. AgenTik verifica credenziali (bcrypt), controlla `attivo=1` e `mostra_kup=1`
+4. Se ok → AgentiKup crea cookie firmato (`agentikup_session`, HttpOnly, SameSite=Lax, 8h TTL)
+5. Tutte le API protette dal middleware; 401 → redirect a login
+
+### Variabili ambiente (systemd)
+
+| Variabile | Descrizione |
+|---|---|
+| `SESSION_SECRET` | Segreto per firma cookie (itsdangerous) |
+| `AGENTIK_AUTH_URL` | URL endpoint verifica credenziali (`https://campusagentik.com/api/verify-auth.php`) |
+| `AGENTIK_API_KEY` | API key condivisa con AgenTik (header `X-API-Key`) |
+| `VERIFY_SSL` | `1` in produzione, `0` in locale (self-signed cert Laragon) |
+| `HTTPS` | `1` per attivare flag `Secure` sul cookie (non impostato, VPS senza HTTPS) |
+
+### Abilitazione utenti
+
+Dal pannello admin AgenTik (`/admin/utenti.php`): toggle colonna **KUP** per abilitare/disabilitare l'accesso per utente. Colonna DB: `utenti.mostra_kup` (TINYINT, default 0).
+
+### File AgenTik coinvolti
+
+- `api/verify-auth.php` — endpoint API protetto da API key, rate limiting 10/min per IP
+- `admin/utenti.php` — toggle `mostra_kup` nel pannello admin
+- `index.php` — tab AgentiKup con link al VPS (visibile solo se `mostra_kup=1`)
+- `sql/006_mostra_kup.sql` — migration per aggiungere colonna
+
+### Deploy Hostinger (AgenTik)
+
+- **Hosting**: Hostinger shared hosting
+- **SSH**: `ssh -p 65002 u198590004@82.25.102.248`
+- **Document root**: `~/domains/campusagentik.com/public_html/`
+- **API key**: configurata in `.htaccess` (`SetEnv AGENTIKUP_API_KEY ...`)
+- **Upload file**: `scp -P 65002 <file> u198590004@82.25.102.248:domains/campusagentik.com/public_html/<path>`
