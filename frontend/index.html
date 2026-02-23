@@ -30,7 +30,10 @@
         <button class="tab-btn active" data-tab="progetti">CUP</button>
         <button class="tab-btn" data-tab="cig">CIG</button>
     </nav>
-    <span class="header-info" id="header-info">Caricamento...</span>
+    <div style="display:flex;align-items:center;gap:12px;">
+        <span class="header-info" id="header-info">Caricamento...</span>
+        <button id="btn-logout" style="display:none;background:none;border:1px solid rgba(255,255,255,0.3);color:white;padding:6px 14px;border-radius:6px;font-family:var(--font-family);font-size:0.75rem;font-weight:600;cursor:pointer;transition:all 200ms;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='none'" onclick="doLogout()">Esci</button>
+    </div>
 </header>
 
 <div class="layout">

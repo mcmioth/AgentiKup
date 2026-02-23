@@ -172,6 +172,25 @@ function highlight(text, q) {
 // ============================================
 
 document.addEventListener("DOMContentLoaded", async () => {
+    // Verifica sessione
+    try {
+        const authRes = await fetch('/api/auth/me');
+        if (authRes.status === 401) {
+            window.location.href = '/login.html';
+            return;
+        }
+        const authData = await authRes.json();
+        if (authData.ok && authData.user) {
+            const logoutBtn = document.getElementById('btn-logout');
+            if (logoutBtn) {
+                logoutBtn.title = `${authData.user.nome} ${authData.user.cognome}`;
+                logoutBtn.style.display = '';
+            }
+        }
+    } catch (e) {
+        // Errore di rete, continua comunque
+    }
+
     initSearchableSelects();
     initGrid();
     bindEvents();
@@ -1105,9 +1124,18 @@ function bindEvents() {
 // UTILS
 // ============================================
 
+async function doLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login.html';
+}
+
 async function fetchApi(url) {
     try {
         const res = await fetch(`${API}${url}`);
+        if (res.status === 401) {
+            window.location.href = '/login.html';
+            return null;
+        }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return await res.json();
     } catch (err) {

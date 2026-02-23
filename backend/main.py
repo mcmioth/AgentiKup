@@ -1,22 +1,37 @@
 """
 FastAPI backend per la dashboard OpenCUP.
 Serve API REST + file statici del frontend.
+Autenticazione via endpoint AgenTik.
 """
 
 import csv
 import io
+import json
 import os
+import time
 from typing import Optional
 
-from fastapi import FastAPI, Query, Request
+import httpx
+from fastapi import FastAPI, Query, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse, FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
 from .queries import Database
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
+
+# --- Configurazione Auth ---
+SESSION_SECRET = os.environ.get("SESSION_SECRET", "dev-secret-change-in-production")
+AGENTIK_AUTH_URL = os.environ.get("AGENTIK_AUTH_URL", "https://localhost/AgenTik/api/verify-auth.php")
+AGENTIK_API_KEY = os.environ.get("AGENTIK_API_KEY", "CHANGE_ME_IN_PRODUCTION")
+SESSION_MAX_AGE = 8 * 3600  # 8 ore
+VERIFY_SSL = os.environ.get("VERIFY_SSL", "0") == "1"  # False in locale, True in produzione
+SESSION_COOKIE = "agentikup_session"
+
+serializer = URLSafeTimedSerializer(SESSION_SECRET)
 
 app = FastAPI(title="OpenCUP Dashboard API", version="1.0.0")
 
@@ -33,6 +48,109 @@ db = Database()
 @app.on_event("shutdown")
 def shutdown():
     db.close()
+
+
+# --- Auth helpers ---
+
+PUBLIC_PATHS = {"/api/auth/login", "/login.html", "/favicon.ico"}
+
+def get_session_user(request: Request) -> Optional[dict]:
+    """Legge e verifica il cookie di sessione. Ritorna i dati utente o None."""
+    cookie = request.cookies.get(SESSION_COOKIE)
+    if not cookie:
+        return None
+    try:
+        data = serializer.loads(cookie, max_age=SESSION_MAX_AGE)
+        return data
+    except (BadSignature, SignatureExpired):
+        return None
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    """Middleware di autenticazione: protegge tutte le rotte tranne quelle pubbliche."""
+    path = request.url.path
+
+    # Rotte pubbliche
+    if path in PUBLIC_PATHS or path.startswith("/static/"):
+        return await call_next(request)
+
+    user = get_session_user(request)
+
+    # API: ritorna 401 JSON
+    if path.startswith("/api/") and not user:
+        return JSONResponse({"error": "Non autenticato"}, status_code=401)
+
+    # Pagine: redirect a login
+    if not user and path in ("/", "/index.html"):
+        return RedirectResponse("/login.html", status_code=302)
+
+    # Salva utente nel request state
+    request.state.user = user
+    return await call_next(request)
+
+
+# --- Auth Endpoints ---
+
+@app.post("/api/auth/login")
+async def login(email: str = Form(...), password: str = Form(...)):
+    """Verifica credenziali tramite API AgenTik e crea sessione."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0, verify=VERIFY_SSL, follow_redirects=True) as client:
+            resp = await client.post(
+                AGENTIK_AUTH_URL,
+                json={"email": email, "password": password},
+                headers={"X-API-Key": AGENTIK_API_KEY},
+            )
+    except httpx.RequestError:
+        return JSONResponse(
+            {"ok": False, "error": "Servizio di autenticazione non raggiungibile"},
+            status_code=502,
+        )
+
+    try:
+        body = resp.json()
+    except Exception:
+        return JSONResponse(
+            {"ok": False, "error": "Risposta non valida dal servizio di autenticazione"},
+            status_code=502,
+        )
+
+    if not body.get("ok"):
+        error_msg = body.get("error", "Credenziali non valide")
+        return JSONResponse({"ok": False, "error": error_msg}, status_code=resp.status_code)
+
+    # Crea sessione
+    user_data = body["user"]
+    session_value = serializer.dumps(user_data)
+
+    response = JSONResponse({"ok": True, "user": user_data})
+    response.set_cookie(
+        SESSION_COOKIE,
+        session_value,
+        max_age=SESSION_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+        secure=os.environ.get("HTTPS", "") == "1",
+    )
+    return response
+
+
+@app.post("/api/auth/logout")
+async def logout():
+    """Invalida sessione cancellando il cookie."""
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(SESSION_COOKIE)
+    return response
+
+
+@app.get("/api/auth/me")
+async def get_me(request: Request):
+    """Ritorna dati utente corrente dalla sessione."""
+    user = get_session_user(request)
+    if not user:
+        return JSONResponse({"error": "Non autenticato"}, status_code=401)
+    return {"ok": True, "user": user}
 
 
 # --- API Endpoints ---
@@ -234,8 +352,14 @@ def export_csv(
 
 # --- Frontend static files ---
 
+@app.get("/login.html")
+def serve_login():
+    return FileResponse(os.path.join(FRONTEND_DIR, "login.html"))
+
+
 @app.get("/")
-def serve_index():
+def serve_index(request: Request):
+    # Il middleware gestisce il redirect se non autenticato
     return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
 
 
