@@ -588,6 +588,8 @@ function buildCigQueryParams() {
     if (cupCode) params.set("q", cupCode);  // override search with CUP code
     const aggiudicatario = document.getElementById("fc-aggiudicatario").value.trim();
     if (aggiudicatario) params.set("SEARCH_AGGIUDICATARIO", aggiudicatario);
+    const cfAggiudicatario = document.getElementById("fc-cf-aggiudicatario").value.trim();
+    if (cfAggiudicatario) params.set("SEARCH_CF_AGGIUDICATARIO", cfAggiudicatario);
 
     const pnrr = document.getElementById("fc-pnrr").value;
     if (pnrr) params.set("ONLY_PNRR", pnrr);
@@ -617,6 +619,7 @@ function clearCigFields() {
     document.getElementById("fc-cig").value = "";
     document.getElementById("fc-cup").value = "";
     document.getElementById("fc-aggiudicatario").value = "";
+    document.getElementById("fc-cf-aggiudicatario").value = "";
     document.getElementById("fc-pnrr").value = "";
     document.getElementById("fc-subappalto").value = "";
     document.getElementById("fc-detail").value = "";

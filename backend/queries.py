@@ -551,6 +551,14 @@ class Database:
                 )
                 params.append(f"%{filters['SEARCH_AGGIUDICATARIO'].lower()}%")
 
+            # Ricerca aggiudicatario per codice fiscale
+            if filters.get("SEARCH_CF_AGGIUDICATARIO"):
+                where_clauses.append(
+                    f"CIG IN (SELECT DISTINCT CIG FROM '{AGGIUDICATARI_PARQUET}' "
+                    f"WHERE LOWER(codice_fiscale) LIKE ?)"
+                )
+                params.append(f"%{filters['SEARCH_CF_AGGIUDICATARIO'].lower()}%")
+
             # Range importo
             if filters.get("importo_min"):
                 where_clauses.append("importo_complessivo_gara >= ?")
