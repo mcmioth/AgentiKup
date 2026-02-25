@@ -21,10 +21,13 @@ backend/
   main.py          # FastAPI app, API REST, auth middleware, serve frontend statico
   queries.py       # Classe Database con tutte le query DuckDB
 frontend/
-  index.html       # Layout: header, sidebar filtri, griglia AG Grid, modale dettaglio
-  login.html       # Pagina di login (credenziali AgenTik)
+  index.html       # Layout: header con logo e greeting, sidebar filtri, griglia AG Grid, modale dettaglio
+  login.html       # Pagina di login stile AgenTik (logo grande, card con bordo arancione, footer CampuStore)
   app.js           # Logica frontend: tab switching, filtri, paginazione, modali, logout
   style.css        # Design system con CSS variables (colore primario: #ef9135)
+  agentikup-logo.svg    # Logo AgentiKup (header e login)
+  logo-campustore.svg   # Logo CampuStore (footer login)
+  favicon.ico/svg/png   # Favicon set generato dal logo (ico 16/32/48, svg, png 16/32/96, apple-touch-icon 180, PWA 192/512)
 scripts/
   convert_to_parquet.py  # Converte CSV OpenCUP + Localizzazione + Soggetti + CIG in Parquet
 data/
@@ -78,8 +81,10 @@ Se i file Parquet non esistono, eseguire prima: `python scripts/convert_to_parqu
 - **Ordinamento server-side**: click header colonna AG Grid
 - **Export CSV**: esporta risultati filtrati (max 100k righe, separatore `;`)
 - **Responsive**: sidebar collassabile su mobile
-- **Login**: pagina dedicata `/login.html`, redirect automatico se non autenticato
-- **Logout**: pulsante "Esci" nell'header con nome utente
+- **Header**: logo AgentiKup, tab CUP/CIG, greeting "Ciao, Nome" + pulsante "Esci"
+- **Login**: pagina dedicata `/login.html` stile AgenTik (logo grande, card con bordo arancione 4px, uppercase labels, shadow arancione su focus, footer CampuStore con copyright)
+- **Favicon**: set completo generato dal logo SVG (ico, svg, png multi-size, apple-touch-icon, icone PWA)
+- **Nessuna barra di ricerca generica**: si usano esclusivamente i filtri nella sidebar sinistra
 
 ## Convenzioni codice
 
@@ -89,6 +94,8 @@ Se i file Parquet non esistono, eseguire prima: `python scripts/convert_to_parqu
 - I filtri usano query params REST (ogni colonna = parametro)
 - Colonne mostrate in tabella definite in `DEFAULT_COLUMNS` / `CIG_DEFAULT_COLUMNS`
 - Colonne filtrabili definite in `FILTER_COLUMNS` / `CIG_FILTER_COLUMNS`
+- Ordine colonne CUP: CUP, Anno, Sogg. Titolare, Descrizione, Stato, Costo, ...
+- Ordine colonne CIG: CIG, CUP, Anno, Amm. Appaltante, Oggetto Gara, Importo, ...
 
 ## Dati sorgente
 
@@ -145,7 +152,7 @@ ssh root@72.62.93.58 "systemctl restart agentikup"
 ## Note tecniche
 
 - DuckDB legge i Parquet direttamente senza caricarli in memoria (memory_limit 4GB)
-- Il frontend serve come file statici da FastAPI (`/static/` -> `frontend/`)
+- Il frontend serve come file statici da FastAPI (`/static/` -> `frontend/`), con route dedicate per `/favicon.ico` e `/login.html`
 - La conversione CSV->Parquet fa JOIN con Localizzazione e Soggetti e dedup per CUP/PIVA
 - I CIG vengono deduplicati per codice CIG tenendo il record piu recente
 - Le colonne numeriche (costo, finanziamento) sono stringhe nel Parquet, cast con `TRY_CAST` nelle query
