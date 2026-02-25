@@ -182,9 +182,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         const authData = await authRes.json();
         if (authData.ok && authData.user) {
             const logoutBtn = document.getElementById('btn-logout');
-            if (logoutBtn) {
-                logoutBtn.title = `${authData.user.nome} ${authData.user.cognome}`;
-                logoutBtn.style.display = '';
+            if (logoutBtn) logoutBtn.style.display = '';
+            const greeting = document.getElementById('user-greeting');
+            const userName = document.getElementById('user-name');
+            if (greeting && userName) {
+                userName.textContent = authData.user.nome;
+                greeting.style.display = '';
             }
         }
     } catch (e) {
@@ -224,8 +227,6 @@ function switchTab(tab, skipLoad) {
     } else {
         clearCigFields();
     }
-    document.getElementById("search-input").value = "";
-
     // Restore default filters for the tab we're entering
     if (tab === "progetti") {
         setFilterValue("f-catsogg", "UNIVERSITA' ED ALTRI ENTI DI ISTRUZIONE");
@@ -250,13 +251,11 @@ function switchTab(tab, skipLoad) {
     gridDiv.innerHTML = "";
 
     if (tab === "progetti") {
-        document.getElementById("search-input").placeholder = "Cerca per CUP, descrizione, soggetto titolare...";
         currentSort = { col: null, dir: "ASC" };
         currentPage = 0;
         initGrid();
         if (!skipLoad) loadProjects();
     } else {
-        document.getElementById("search-input").placeholder = "Cerca per CIG, CUP, oggetto gara, amm. appaltante...";
         cigSort = { col: null, dir: "ASC" };
         cigPage = 0;
         initCigGrid();
@@ -277,9 +276,9 @@ function switchTab(tab, skipLoad) {
 function initGrid() {
     const columnDefs = [
         { field: "CUP", width: 170, pinned: "left", cellClass: "cup-link" },
+        { field: "ANNO_DECISIONE", headerName: "Anno", width: 90, comparator: numComp },
         { field: "SOGGETTO_TITOLARE", headerName: "Sogg. Titolare", flex: 1, minWidth: 180 },
         { field: "DESCRIZIONE_SINTETICA_CUP", headerName: "Descrizione", flex: 2, minWidth: 250 },
-        { field: "ANNO_DECISIONE", headerName: "Anno", width: 90, comparator: numComp },
         { field: "STATO_PROGETTO", headerName: "Stato", width: 110 },
         {
             field: "COSTO_PROGETTO", headerName: "Costo",
@@ -331,6 +330,7 @@ function initCigGrid() {
     const columnDefs = [
         { field: "CIG", width: 130, pinned: "left", cellClass: "cup-link" },
         { field: "CUP", width: 170 },
+        { field: "anno_pubblicazione", headerName: "Anno", width: 80, comparator: numComp },
         { field: "amm_appaltante", headerName: "Amm. Appaltante", flex: 1, minWidth: 200 },
         { field: "oggetto_gara", headerName: "Oggetto Gara", flex: 2, minWidth: 250 },
         {
@@ -347,7 +347,6 @@ function initCigGrid() {
         { field: "tipo_scelta_contraente", headerName: "Tipo Contraente", width: 200 },
         { field: "data_pubblicazione", headerName: "Data Pubbl.", width: 120 },
         { field: "provincia_cig", headerName: "Provincia", width: 120 },
-        { field: "anno_pubblicazione", headerName: "Anno", width: 80, comparator: numComp },
         {
             field: "flag_pnrr_pnc", headerName: "PNRR", width: 80,
             cellRenderer: p => p.value === 1 ? '<span class="pnrr-badge">PNRR</span>' : "",
@@ -527,8 +526,6 @@ function setFilterValue(elId, val) {
 
 function buildQueryParams() {
     const params = new URLSearchParams();
-    const q = document.getElementById("search-input").value.trim();
-    if (q) params.set("q", q);
 
     for (const [param, elId] of Object.entries(FILTER_MAPPING)) {
         const val = getFilterValue(elId);
@@ -577,7 +574,6 @@ function clearProgettiFields() {
 }
 
 function resetFilters() {
-    document.getElementById("search-input").value = "";
     clearProgettiFields();
     setFilterValue("f-catsogg", "UNIVERSITA' ED ALTRI ENTI DI ISTRUZIONE");
     setFilterValue("f-sottocatsogg", "ISTITUTI PUBBLICI DI ISTRUZIONE SCOLASTICA");
@@ -593,8 +589,6 @@ function resetFilters() {
 
 function buildCigQueryParams() {
     const params = new URLSearchParams();
-    const q = document.getElementById("search-input").value.trim();
-    if (q) params.set("q", q);
 
     for (const [param, elId] of Object.entries(CIG_FILTER_MAPPING)) {
         const val = getFilterValue(elId);
@@ -647,7 +641,6 @@ function clearCigFields() {
 }
 
 function resetCigFilters() {
-    document.getElementById("search-input").value = "";
     clearCigFields();
     cigSort = { col: null, dir: "ASC" };
     cigPage = 0;
@@ -1083,21 +1076,6 @@ function bindEvents() {
     document.getElementById("modal-close").addEventListener("click", closeDetail);
     document.getElementById("modal-overlay").addEventListener("click", (e) => {
         if (e.target === e.currentTarget) closeDetail();
-    });
-
-    // Search with debounce
-    let searchTimeout;
-    document.getElementById("search-input").addEventListener("input", () => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            if (currentTab === "progetti") {
-                currentPage = 0;
-                loadProjects();
-            } else {
-                cigPage = 0;
-                loadCigs();
-            }
-        }, 400);
     });
 
     // Mobile menu

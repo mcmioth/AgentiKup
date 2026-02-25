@@ -352,6 +352,11 @@ def export_csv(
 
 # --- Frontend static files ---
 
+@app.get("/favicon.ico")
+def serve_favicon():
+    return FileResponse(os.path.join(FRONTEND_DIR, "favicon.ico"))
+
+
 @app.get("/login.html")
 def serve_login():
     return FileResponse(os.path.join(FRONTEND_DIR, "login.html"))

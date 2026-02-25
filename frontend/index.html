@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CS AgentiKup</title>
 
+    <!-- Favicon -->
+    <link rel="icon" href="/static/favicon.ico" sizes="any">
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/static/favicon-96.png" type="image/png" sizes="96x96">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+    <meta name="theme-color" content="#ef9135">
+
     <!-- Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,7 +30,8 @@
 <!-- Header -->
 <header class="header">
     <div style="display:flex;align-items:center;gap:12px;">
-        <button class="btn-menu" id="btn-menu" style="display:none;background:none;border:none;color:white;font-size:1.3rem;cursor:pointer;">&#9776;</button>
+        <button class="btn-menu" id="btn-menu" style="display:none;background:none;border:none;color:var(--text-secondary);font-size:1.3rem;cursor:pointer;">&#9776;</button>
+        <img src="/static/agentikup-logo.svg" alt="CS AgentiKup" style="height:36px;">
         <h1>CS AgentiKup</h1>
     </div>
     <nav class="tab-nav">
@@ -31,8 +39,8 @@
         <button class="tab-btn" data-tab="cig">CIG</button>
     </nav>
     <div style="display:flex;align-items:center;gap:12px;">
-        <span class="header-info" id="header-info">Caricamento...</span>
-        <button id="btn-logout" style="display:none;background:none;border:1px solid rgba(255,255,255,0.3);color:white;padding:6px 14px;border-radius:6px;font-family:var(--font-family);font-size:0.75rem;font-weight:600;cursor:pointer;transition:all 200ms;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='none'" onclick="doLogout()">Esci</button>
+        <span id="user-greeting" style="display:none;font-size:var(--text-sm);font-weight:500;color:var(--text-secondary);">Ciao, <strong id="user-name"></strong></span>
+        <button id="btn-logout" style="display:none;background:none;border:1px solid var(--border);color:var(--text-secondary);padding:6px 14px;border-radius:6px;font-family:var(--font-family);font-size:0.75rem;font-weight:600;cursor:pointer;transition:all 200ms;" onmouseover="this.style.borderColor='var(--text-tertiary)';this.style.color='var(--text-primary)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'" onclick="doLogout()">Esci</button>
     </div>
 </header>
 
@@ -305,13 +313,8 @@
 
     <!-- Main Content -->
     <main class="main">
-        <!-- Search & Actions -->
+        <!-- Actions -->
         <section class="actions-bar">
-            <div class="search-box">
-                <svg class="search-box-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                <input type="text" id="search-input"
-                       placeholder="Cerca per CUP, descrizione, soggetto titolare...">
-            </div>
             <span class="results-info" id="results-info"></span>
             <button class="btn btn-secondary" id="btn-export">Esporta CSV</button>
         </section>

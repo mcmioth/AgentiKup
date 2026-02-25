@@ -5,15 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - CS AgentiKup</title>
 
+    <!-- Favicon -->
+    <link rel="icon" href="/static/favicon.ico" sizes="any">
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/static/favicon-96.png" type="image/png" sizes="96x96">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+
     <!-- Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <meta name="theme-color" content="#ef9135">
 
     <style>
         :root {
             --primary: #ef9135;
             --primary-hover: #e07d1e;
+            --primary-alpha-15: rgba(239, 125, 0, 0.15);
             --bg: #f7f8fa;
             --surface: #ffffff;
             --border: #e2e5e9;
@@ -23,9 +32,6 @@
             --error: #dc2626;
             --error-bg: #fef2f2;
             --font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-            --radius-md: 10px;
-            --radius-lg: 14px;
-            --shadow-lg: 0 8px 24px rgba(0,0,0,0.08), 0 4px 8px rgba(0,0,0,0.04);
         }
 
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -35,86 +41,123 @@
             background: var(--bg);
             min-height: 100vh;
             display: flex;
+            flex-direction: column;
+        }
+
+        .login-container {
+            flex: 1;
+            display: flex;
             align-items: center;
             justify-content: center;
+            padding: 24px;
         }
 
         .login-card {
-            background: var(--surface);
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-lg);
-            padding: 48px 40px;
             width: 100%;
             max-width: 420px;
-            margin: 20px;
         }
 
-        .login-header {
+        .login-logo {
             text-align: center;
-            margin-bottom: 32px;
+            margin-bottom: 24px;
         }
 
-        .login-header h1 {
-            font-size: 1.5rem;
-            font-weight: 800;
+        .login-logo img {
+            max-height: 160px;
+        }
+
+        .login-logo__title {
+            font-size: 1.125rem;
+            font-weight: 700;
             color: var(--text-primary);
-            margin-bottom: 8px;
+            margin-top: 12px;
         }
 
-        .login-header h1 span {
-            color: var(--primary);
+        .login-logo__subtitle {
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
         }
 
-        .login-header p {
-            font-size: 0.875rem;
-            color: var(--text-tertiary);
+        .card {
+            background: var(--surface);
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            overflow: hidden;
+            border-top: 4px solid var(--primary);
+        }
+
+        .card__body {
+            padding: 24px;
         }
 
         .form-group {
             margin-bottom: 20px;
         }
 
-        .form-group label {
+        .form-label {
             display: block;
-            font-size: 0.8125rem;
-            font-weight: 600;
+            font-size: 0.6875rem;
+            font-weight: 700;
             color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
             margin-bottom: 6px;
         }
 
-        .form-group input {
+        .form-input {
             width: 100%;
-            padding: 12px 14px;
-            border: 2px solid var(--border);
-            border-radius: var(--radius-md);
+            padding: 12px 16px;
             font-family: var(--font-family);
-            font-size: 0.9375rem;
+            font-size: 0.8125rem;
             color: var(--text-primary);
-            transition: border-color 200ms;
+            background: var(--surface);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            transition: all 200ms;
             outline: none;
         }
 
-        .form-group input:focus {
+        .form-input:hover {
+            border-color: var(--text-tertiary);
+        }
+
+        .form-input:focus {
             border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-alpha-15);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-tertiary);
         }
 
         .btn-login {
             width: 100%;
-            padding: 14px;
+            padding: 16px;
             background: var(--primary);
             color: white;
             border: none;
-            border-radius: var(--radius-md);
+            border-radius: 10px;
             font-family: var(--font-family);
             font-size: 0.9375rem;
             font-weight: 700;
             cursor: pointer;
-            transition: background 200ms, box-shadow 200ms;
+            transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 14px rgba(239, 125, 0, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
 
-        .btn-login:hover {
+        .btn-login:hover:not(:disabled) {
             background: var(--primary-hover);
-            box-shadow: 0 4px 14px rgba(239, 125, 0, 0.25);
+            box-shadow: 0 6px 20px rgba(239, 125, 0, 0.35);
+            transform: translateY(-1px);
+        }
+
+        .btn-login:active:not(:disabled) {
+            transform: translateY(0);
         }
 
         .btn-login:disabled {
@@ -126,39 +169,78 @@
             background: var(--error-bg);
             color: var(--error);
             padding: 12px 14px;
-            border-radius: var(--radius-md);
+            border-radius: 10px;
             font-size: 0.8125rem;
             font-weight: 500;
             margin-bottom: 20px;
             display: none;
+            border-left: 4px solid var(--error);
         }
 
         .error-msg.visible {
             display: block;
         }
+
+        footer {
+            text-align: center;
+            padding: 24px 16px 20px;
+        }
+
+        footer img {
+            height: 30px;
+            margin-bottom: 12px;
+        }
+
+        .footer-copy {
+            font-size: 0.6875rem;
+            color: var(--text-tertiary);
+        }
+
+        .footer-love {
+            font-size: 0.6875rem;
+            color: var(--text-tertiary);
+            margin-top: 8px;
+        }
     </style>
 </head>
 <body>
-    <div class="login-card">
-        <div class="login-header">
-            <h1>CS <span>AgentiKup</span></h1>
-            <p>Accedi con le tue credenziali AgenTik</p>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-logo">
+                <img src="/static/agentikup-logo.svg" alt="CS AgentiKup">
+                <div class="login-logo__title">CS AgentiKup</div>
+                <div class="login-logo__subtitle">Accedi con le tue credenziali AgenTik</div>
+            </div>
+
+            <div class="card">
+                <div class="card__body">
+                    <div class="error-msg" id="errorMsg"></div>
+
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <label class="form-label" for="email">Email</label>
+                            <input type="email" id="email" name="email" class="form-input"
+                                   required autocomplete="email" placeholder="nome@campustore.it">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 24px;">
+                            <label class="form-label" for="password">Password</label>
+                            <input type="password" id="password" name="password" class="form-input"
+                                   required autocomplete="current-password" placeholder="La tua password AgenTik">
+                        </div>
+                        <button type="submit" class="btn-login" id="btnLogin">
+                            <i class="fas fa-sign-in-alt"></i> Accedi
+                        </button>
+                    </form>
+                </div>
+            </div>
         </div>
-
-        <div class="error-msg" id="errorMsg"></div>
-
-        <form id="loginForm">
-            <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email" required autocomplete="email" placeholder="nome@esempio.com">
-            </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="La tua password AgenTik">
-            </div>
-            <button type="submit" class="btn-login" id="btnLogin">Accedi</button>
-        </form>
     </div>
+
+    <footer>
+        <img src="/static/logo-campustore.svg" alt="CampuStore"><br>
+        <div class="footer-copy">&copy; 2026 CampuStore | AgentiKup - Tutti i diritti riservati.</div>
+        <div class="footer-love">Made with <span style="color: #ef9135;">&hearts;</span> in CampuStore</div>
+    </footer>
 
     <script>
         const form = document.getElementById('loginForm');
@@ -169,7 +251,7 @@
             e.preventDefault();
             errorMsg.classList.remove('visible');
             btnLogin.disabled = true;
-            btnLogin.textContent = 'Accesso in corso...';
+            btnLogin.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Accesso in corso...';
 
             const formData = new FormData(form);
 
@@ -192,7 +274,7 @@
             }
 
             btnLogin.disabled = false;
-            btnLogin.textContent = 'Accedi';
+            btnLogin.innerHTML = '<i class="fas fa-sign-in-alt"></i> Accedi';
         });
     </script>
 </body>
